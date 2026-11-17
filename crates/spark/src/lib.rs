@@ -168,9 +168,13 @@
 //! [Getting started](#getting-started), then use the extension trait - see
 //! [`SessionStateBuilderSpark::with_spark_features`] for an example.
 
-mod eval_mode;
+/// Spark configuration extensions and map-key deduplication policy.
+pub mod config;
 pub mod function;
 pub mod planner;
+
+pub use config::{MapKeyDedupPolicy, SparkOptions};
+mod eval_mode;
 
 pub use eval_mode::EvalMode;
 
