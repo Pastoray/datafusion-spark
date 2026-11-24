@@ -19,7 +19,7 @@ function differs from the DataFusion built-in of the same name, if there is one.
 
 - [Math Functions](scalar/math.md) (28)
 - [Conditional Functions](scalar/conditional.md) (2)
-- [String Functions](scalar/string.md) (17)
+- [String Functions](scalar/string.md) (18)
 - [Binary String Functions](scalar/binary_string.md) (5)
 - [Time and Date Functions](scalar/time_and_date.md) (29)
 - [Array Functions](scalar/array.md) (10)
@@ -84,6 +84,7 @@ function differs from the DataFusion built-in of the same name, if there is one.
 - [equal_null](scalar/other.md#equal_null)
 - [expm1](scalar/math.md#expm1)
 - [factorial](scalar/math.md#factorial)
+- [find_in_set](scalar/string.md#find_in_set)
 - [floor](scalar/math.md#floor)
 - [format_string](scalar/string.md#format_string)
 - [from_utc_timestamp](scalar/time_and_date.md#from_utc_timestamp)
