@@ -4,11 +4,15 @@
 
 //! Spark higher-order (lambda) functions.
 
-use datafusion_expr::ScalarUDF;
+pub mod transform_values;
+
+use datafusion_expr::HigherOrderUDF;
 use std::sync::Arc;
 
 pub mod expr_fn {}
 
-pub fn functions() -> Vec<Arc<ScalarUDF>> {
-    vec![]
+pub fn functions() -> Vec<Arc<HigherOrderUDF>> {
+    vec![Arc::new(HigherOrderUDF::new_from_impl(
+        transform_values::TransformValues::new(),
+    ))]
 }

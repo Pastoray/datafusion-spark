@@ -190,7 +190,7 @@ pub use session_state::SessionStateBuilderSpark;
 
 use datafusion_common::Result;
 use datafusion_expr::registry::FunctionRegistry;
-use datafusion_expr::{AggregateUDF, ScalarUDF, WindowUDF};
+use datafusion_expr::{AggregateUDF, HigherOrderUDF, ScalarUDF, WindowUDF};
 use datafusion_session::TableFunction;
 use log::debug;
 use std::sync::Arc;
@@ -238,7 +238,6 @@ pub fn all_default_scalar_functions() -> Vec<Arc<ScalarUDF>> {
         .chain(function::generator::functions())
         .chain(function::hash::functions())
         .chain(function::json::functions())
-        .chain(function::lambda::functions())
         .chain(function::map::functions())
         .chain(function::math::functions())
         .chain(function::misc::functions())
@@ -249,6 +248,11 @@ pub fn all_default_scalar_functions() -> Vec<Arc<ScalarUDF>> {
         .chain(function::variant::functions())
         .chain(function::xml::functions())
         .collect::<Vec<_>>()
+}
+
+/// Returns all default higher-order (lambda) functions
+pub fn all_default_higher_order_functions() -> Vec<Arc<HigherOrderUDF>> {
+    function::lambda::functions()
 }
 
 /// Returns all default aggregate functions
@@ -277,6 +281,19 @@ pub fn register_all(registry: &mut dyn FunctionRegistry) -> Result<()> {
         }
         Ok(()) as Result<()>
     })?;
+
+    all_default_higher_order_functions()
+        .into_iter()
+        .try_for_each(|udf| {
+            let existing_udf = registry.register_higher_order_function(udf)?;
+            if let Some(existing_udf) = existing_udf {
+                debug!(
+                    "Overwrite existing higher-order UDF: {}",
+                    existing_udf.name()
+                );
+            }
+            Ok(()) as Result<()>
+        })?;
 
     let aggregate_functions: Vec<Arc<AggregateUDF>> = all_default_aggregate_functions();
     aggregate_functions.into_iter().try_for_each(|udf| {

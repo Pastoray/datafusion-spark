@@ -10,8 +10,9 @@ use datafusion::execution::SessionStateBuilder;
 use crate::SparkOptions;
 use crate::planner::SparkFunctionPlanner;
 use crate::{
-    all_default_aggregate_functions, all_default_scalar_functions,
-    all_default_table_functions, all_default_window_functions,
+    all_default_aggregate_functions, all_default_higher_order_functions,
+    all_default_scalar_functions, all_default_table_functions,
+    all_default_window_functions,
 };
 
 /// Extension trait for adding Apache Spark features to [`SessionStateBuilder`].
@@ -96,6 +97,10 @@ impl SessionStateBuilderSpark for SessionStateBuilder {
         self.scalar_functions()
             .get_or_insert_with(Vec::new)
             .extend(all_default_scalar_functions());
+
+        self.higher_order_functions()
+            .get_or_insert_with(Vec::new)
+            .extend(all_default_higher_order_functions());
 
         self.aggregate_functions()
             .get_or_insert_with(Vec::new)

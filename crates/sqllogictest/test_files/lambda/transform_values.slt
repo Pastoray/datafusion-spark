@@ -1,0 +1,135 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Spark doctests
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2, 3), array(1, 2, 3)), (k, v) -> v + 1);
+----
+{1: 2, 2: 3, 3: 4}
+
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2, 3), array(1, 2, 3)), (k, v) -> k + v);
+----
+{1: 2, 2: 4, 3: 6}
+
+# TODO: Spark wraps a `func` that is not a lambda in a hidden lambda, DataFusion only accepts a lambda
+# SELECT transform_values(map('a', 1, 'b', 2), 999);
+# {a: 999, b: 999}
+
+# NULL values reach the lambda
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2, 3), array(1, NULL, 3)), (k, v) -> v + 1);
+----
+{1: 2, 2: NULL, 3: 4}
+
+# The lambda does not have to use the value
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2, 3), array(1, NULL, 3)), (k, v) -> k * k);
+----
+{1: 1, 2: 4, 3: 9}
+
+# The keys keep their order
+query ?
+SELECT transform_values(map_from_arrays(array(3, 1, 2), array(30, 10, 20)), (k, v) -> v + k);
+----
+{3: 33, 1: 11, 2: 22}
+
+# NULL and empty maps
+query ?
+SELECT transform_values(map_from_arrays(CAST(NULL AS ARRAY<INT>), array(1)), (k, v) -> v + 1);
+----
+NULL
+
+query ?
+SELECT transform_values(map_from_arrays(CAST(array() AS ARRAY<INT>), CAST(array() AS ARRAY<INT>)), (k, v) -> CAST(v AS STRING));
+----
+{}
+
+# The value type follows the lambda: string to int, int to struct, int to map
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2), array('a', 'bcd')), (k, v) -> length(v));
+----
+{1: 1, 2: 3}
+
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2), array(10, 20)), (k, v) -> named_struct('key', k, 'value', v));
+----
+{1: {key: 1, value: 10}, 2: {key: 2, value: 20}}
+
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2), array(10, 20)), (k, v) -> map_from_arrays(array(k), array(v)));
+----
+{1: {1: 10}, 2: {2: 20}}
+
+# Chained calls
+query ?
+SELECT transform_values(transform_values(map_from_arrays(array(1, 2, 3), array(1, 2, 3)), (k, v) -> v + 1), (k, v) -> v * 2);
+----
+{1: 4, 2: 6, 3: 8}
+
+# A nested lambda can use the parameters of the outer one
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2), array(map_from_arrays(array(10), array(100)), map_from_arrays(array(20), array(200)))), (k, v) -> transform_values(v, (k2, v2) -> v2 + k));
+----
+{1: {10: 101}, 2: {20: 202}}
+
+# Several rows, with NULL, empty and NULL-valued maps
+query ?
+SELECT transform_values(m, (k, v) -> v + 1)
+FROM (VALUES
+    (map_from_arrays(array(1, 2), array(10, 20))),
+    (map_from_arrays(CAST(NULL AS ARRAY<INT>), array(1))),
+    (map_from_arrays(CAST(array() AS ARRAY<INT>), CAST(array() AS ARRAY<INT>))),
+    (map_from_arrays(array(3), array(CAST(NULL AS INT))))
+) AS t(m);
+----
+{1: 11, 2: 21}
+NULL
+{}
+{3: NULL}
+
+# Columns used by the lambda belong to the row of the map
+query ?
+SELECT transform_values(m, (k, v) -> v + c)
+FROM (VALUES
+    (map_from_arrays(array(1, 2), array(10, 20)), 100),
+    (map_from_arrays(CAST(array() AS ARRAY<INT>), CAST(array() AS ARRAY<INT>)), 200),
+    (map_from_arrays(array(3), array(30)), 300)
+) AS t(m, c);
+----
+{1: 110, 2: 120}
+{}
+{3: 330}
+
+# The lambda must take both the key and the value
+query error DataFusion error: Error during planning: \[INVALID_LAMBDA_FUNCTION_CALL\.NUM_ARGS_MISMATCH\] Invalid lambda function call\. A higher order function expects 2 arguments, but got 1\. SQLSTATE: 42K0D
+SELECT transform_values(map_from_arrays(array(1, 2, 3), array(1, 2, 3)), v -> v + 1);
+
+query error DataFusion error: Error during planning: lambda defined 3 params but UDF support only 2
+SELECT transform_values(map_from_arrays(array(1, 2, 3), array(1, 2, 3)), (k, v, x) -> v + 1);
+
+# Other types than a map
+query error DataFusion error: Error during planning: \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `transform_values` requires the "MAP" type, however it has the type "ARRAY<BIGINT>"\. SQLSTATE: 42K09
+SELECT transform_values(array(1, 2), (k, v) -> v);
+
+query error DataFusion error: Error during planning: \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `transform_values` requires the "MAP" type, however it has the type "STRING"\. SQLSTATE: 42K09
+SELECT transform_values('a', (k, v) -> v);
+
+query error DataFusion error: Error during planning: \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `transform_values` requires the "MAP" type, however it has the type "VOID"\. SQLSTATE: 42K09
+SELECT transform_values(NULL, (k, v) -> v);
+
+# The lambda follows the ANSI mode of the session
+query ?
+SELECT transform_values(map_from_arrays(array(1, 2), array(1, 0)), (k, v) -> 10 / v);
+----
+{1: 10.0, 2: NULL}
+
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error DataFusion error: Arrow error: Divide by zero error
+SELECT transform_values(map_from_arrays(array(1, 2), array(1, 0)), (k, v) -> 10 / v);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
